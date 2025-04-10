@@ -1,3 +1,11 @@
+# Ignore everything inside the assignments
+*/*
+
+# Allow folder traversal
+!*/
+!*/_assets/
+!*/_assets/**
+
 # Prerequisites
 *.d
 
