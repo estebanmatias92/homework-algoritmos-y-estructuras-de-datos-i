@@ -1,0 +1,13 @@
+{
+	"nodes":[
+		{"id":"1c07e7d0f2c0d32a","x":-153,"y":-300,"width":188,"height":60,"type":"text","text":"## Problema"},
+		{"id":"28f953cf1450da0d","x":25,"y":-460,"width":332,"height":60,"type":"text","text":"Se requiere resolver un problema a través del software"},
+		{"id":"cf88a105aa26f9ef","x":-153,"y":180,"width":197,"height":60,"type":"text","text":"## Programa"},
+		{"id":"7c284a200809b387","x":-147,"y":-60,"width":191,"height":60,"type":"text","text":"## Algoritmo"}
+	],
+	"edges":[
+		{"id":"6d2a70ec062ef3a5","fromNode":"1c07e7d0f2c0d32a","fromSide":"bottom","toNode":"7c284a200809b387","toSide":"top","label":"Se plantean los pasos secuenciales, ordenados y finitos que le darán solución"},
+		{"id":"31771d2cb424be8b","fromNode":"7c284a200809b387","fromSide":"bottom","toNode":"cf88a105aa26f9ef","toSide":"top","label":"El algoritmo es traducido a un lenguaje que pueda ser ejecutado por una computadora"},
+		{"id":"6aa0bc4730312c8d","fromNode":"28f953cf1450da0d","fromSide":"left","toNode":"1c07e7d0f2c0d32a","toSide":"right","label":"Se analiza e identifica el problema"}
+	]
+}

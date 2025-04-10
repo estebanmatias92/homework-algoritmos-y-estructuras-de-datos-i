@@ -1,0 +1,18 @@
+services:
+  cpp-hola-mundo:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+      target: build # Use the build stage
+    command: ./build/main
+
+  cpp-dev:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+      target: dev # Use the dev stage
+    stdin_open: true
+    tty: true
+    volumes: # It needs access to the service root dir
+      - ./app:/app
+    command: /bin/bash
