@@ -7,7 +7,7 @@ using namespace std;
   
 int main()  
 {  
-    cout << "Hola ISFT 151!" << endl;
+    cout << "Hola Mundo!" << endl;
 
     cout << "Press Enter to exit...";
     cin.get();  // Waits for just one Enter
