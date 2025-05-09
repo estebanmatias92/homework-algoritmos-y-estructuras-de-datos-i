@@ -1,34 +1,109 @@
 #include <iostream>
 using namespace std;
 
+// Prototipados
+int despegar(int velocidad);
+int aterrizar(int velocidad);
+int acelerar(int velocidad);
+int frenar(int velocidad);
+void mostrarMenu();
+
 // Posibles estados del drone
 enum EstadoDrone {
     EN_TIERRA,
-    EN_VUELO,
-    ESTADO_DESCONOCIDO
+    EN_VUELO
 };
 
 // Variables de estado
 EstadoDrone estadoActual = EN_TIERRA;
-int velocidad = 0;  // Velocidad inicial
 
 // Funciones básicas (solo muestran estado)
-void despegar() {
-    cout << "[DESPEGAR] Estado actual: " 
-         << "Despegando!!" << endl;
+int despegar(int velocidad) {
+    if (estadoActual == EN_TIERRA)
+    {
+        cout << "[DESPEGAR] Estado actual: "
+             << "En tierra" << endl
+             << "Velocidad: " << velocidad << "m/s" << endl;
+        
+        estadoActual = EN_VUELO;
+        velocidad += 1;
+
+        cout << "En vuelo" << endl;
+    }
+    else
+    {
+        cout << "[DESPEGAR] Error: El dron se encuentra en el aire, no puede despega mas!!" << endl;
+    }
+    
+    cout << "Velocidad: " << velocidad << "m/s" << endl;
+    
+    return velocidad;
 }
 
-void aterrizar() {
-    cout << "[ATERRIZAR] Estado actual: " 
-         << "Aterrizando!!" << endl;
+int aterrizar(int velocidad) {
+    if (estadoActual == EN_VUELO) 
+    {
+        cout << "[ATERRIZAR] Estado actual: "
+             << "En vuelo, aterrizando" << endl
+             << "Velocidad: " << velocidad << "m/s" << endl;
+
+        if (velocidad > 0) 
+            velocidad = 0;
+
+        estadoActual = EN_TIERRA;
+    }        
+    else
+    {
+        cout << "[ATERRIZAR] Error: El dron ya se encuentra en tierra!!" << endl; 
+    }
+    
+    cout << "En tierra" << endl
+         << "Velocidad: " << velocidad << "m/s" << endl;
+
+    return velocidad;
 }
 
-void acelerar() {
-    cout << "[ACELERAR] Velocidad actual: " << "Acelerando!!" << endl;
+int acelerar(int velocidad) {
+    if (estadoActual == EN_VUELO)
+    {
+        velocidad += 1;
+
+        cout << "[ACELERAR] Velocidad actual: " 
+             << velocidad << "m/s " << endl;
+    }
+    else
+    {
+        cout << "[ACELERAR] Error: El dron no esta en aire, no puede acelerar!!" << endl
+             << "Velocidad: " << velocidad << "m/s" << endl;
+    }
+
+    return velocidad;
 }
 
-void frenar() {
-    cout << "[FRENAR] Velocidad actual: " << "Frenando!!" << endl;
+int frenar(int velocidad) {
+    if (estadoActual == EN_VUELO)
+    {
+        if (velocidad > 0)
+        {
+            cout << "[FRENAR] Velocidad actual: "
+                 << "Velocidad: " << velocidad << "m/s " << endl;
+       
+            velocidad = 0;
+            
+            cout << "Frenando" << endl
+                 << "Velocidad: " << velocidad << "m/s " << endl;
+        }
+        else
+        {
+            cout << "[FRENAR] Error: El dron ya estaba frenado!!" << endl;
+        }
+    }
+    else
+    {
+        cout << "[FRENAR] Error: El dron esta en el piso, no puede frenar mas!!" << endl;
+    }
+
+    return velocidad;
 }
 
 // 1. Menú interactivo
@@ -45,6 +120,7 @@ void mostrarMenu() {
 int main() {
     int opcion = 0;
     bool salir = false;
+    int velocidad = 0;  // Velocidad inicial
 
     do {
         // Limpiar antes de retornar al menu
@@ -66,16 +142,16 @@ int main() {
 
         switch (opcion) {
             case 1:
-                despegar();
+                velocidad = despegar(velocidad);
                 break;
             case 2:
-                aterrizar();
+                velocidad = aterrizar(velocidad);
                 break;
             case 3:
-                acelerar();
+                velocidad = acelerar(velocidad);
                 break;
             case 4:
-                frenar();
+                velocidad = frenar(velocidad);
                 break;
             case 5:
                 salir = true;
