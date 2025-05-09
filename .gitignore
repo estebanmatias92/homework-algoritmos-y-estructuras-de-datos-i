@@ -2,6 +2,7 @@
 *.ini
 [0-9][0-9]/*
 [0-9][0-9]/solution/theory
+trivia-[0-9][0-9]
 
 # ==== EXCEPTIONS: Whitelist what to track ====
 ![0-9][0-9]/solution/
