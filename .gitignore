@@ -1,15 +1,11 @@
-# ==== IGNORE EVERYTHING by default ====
-*.ini
-[0-9][0-9]/*
-[0-9][0-9]/solution/theory
-kata-[0-9][0-9]/*
-kata-[0-9][0-9]/solution/theory
-trivia-[0-9][0-9]
+# === Ignore everything by default ===
+*
+!.gitignore
+!README.md
 
-# ==== EXCEPTIONS: Whitelist what to track ====
-![0-9][0-9]/solution/
-![0-9][0-9]/solution/program/
-![0-9][0-9]/solution/program/**
-!kata-[0-9][0-9]/solution/
-!kata-[0-9][0-9]/solution/program/
-!kata-[0-9][0-9]/solution/program/**
+# === Allow only assignment folders ===
+!*/
+
+# === Allow code folders and contents ===
+!*/code/
+!*/code/**
