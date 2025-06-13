@@ -7,4 +7,4 @@ services:
     tty: true # Enable terminal
     volumes: # It needs access to the service root dir
       - .:/app
-    command: /bin/bash
+    command: ./build/main

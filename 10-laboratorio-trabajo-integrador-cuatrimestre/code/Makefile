@@ -18,7 +18,10 @@ clean-prod:
 
 # 🛠️ Desarrollo (solo core-service y dependencias)
 up-dev:
-	docker compose -f ./core-service/compose.yaml --env-file .env up --build -d
+	docker compose -f ./core-service/compose.yaml --env-file .env up --build
+
+run-dev:
+	docker compose -f ./core-service/compose.yaml --env-file .env run --build dev 
 
 down-dev:
 	docker compose -f ./core-service/compose.yaml down

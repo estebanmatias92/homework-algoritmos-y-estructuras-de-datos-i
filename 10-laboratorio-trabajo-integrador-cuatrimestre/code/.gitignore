@@ -139,6 +139,7 @@ dkms.conf
 build/
 bin/
 *.log
+guests.txt
 
 # Docker, Compose
 #*compose*.yaml

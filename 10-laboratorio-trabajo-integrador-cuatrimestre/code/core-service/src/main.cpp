@@ -1,50 +1,87 @@
 #include <iostream>  // For standard input/output operations (cout, cin, cerr)
 #include <string>    // For std::string
 #include <fstream>   // For file stream operations (ofstream, ifstream)
-#include <limits>    // For std::numeric_limits (used with ignore)
-#include <iomanip>   // For output formatting (setw, left, right, fixed, setprecision)
+#include <limits>    // For std::numeric_limits (used for input buffer clearing)
+#include <iomanip>   // For output formatting (setw, left, right)
 #include <algorithm> // For std::find_if (used for trimming whitespace)
 #include <cctype>    // For std::isspace (used for trimming whitespace)
 
-// App settings
-const int MAX_GUESTS = 100; // Maximum limit for guests in the array
-const std::string DB_CONNECTION = "guests.txt"; // File name for persistent guest data
+// App settings and Global Data
+const int MAX_GUESTS = 100;
+const std::string DB_CONNECTION = "guests.txt";
+const short int FIRST_TICKET_NUMBER = 100; // Starting ticket number
 
-// Define Guest Statuses
 enum GuestStatus {
-    PENDING_CONFIRMATION = 1, // Mapped to 1 for intuitive user input
+    PENDING_CONFIRMATION = 1,
     CONFIRMED = 2,
     WAITLISTED = 3,
     CANCELLED = 4
 };
 
-// Define the Guest data structure
-struct Guest
+typedef struct
 {
-    unsigned int ID = 0; // Auto-incremented, unique identifier
-    short int ticket = 0; // Ticket number
-    std::string name = "Unknown"; // Guest's name (can contain spaces)
-    unsigned short int phone = 0; // Guest's phone number
-    GuestStatus status = PENDING_CONFIRMATION; // Default status
-};
+    unsigned int ID = 0;
+    short int ticket = 0;
+    unsigned int phone = 0;
+    std::string email = "N/A";
+    GuestStatus status = PENDING_CONFIRMATION;
+    std::string name = "Unknown";
+} Guest;
 
-// Define the GuestArray structure to hold multiple guests
-struct GuestArray
+typedef struct 
 {
     Guest items[MAX_GUESTS];
-    int length = 0; // Current number of guests in the array
-};
+    int length = 0;
+} GuestArray;
 
-// Global variable for auto-incrementing ID
 unsigned int next_guest_id = 1;
+short int next_ticket_number = FIRST_TICKET_NUMBER; // Global for auto-incrementing ticket
 
-
+// Function Prototypes
 // --- Utility Functions ---
+void clear_input_buffer();
+void trim_leading_whitespace(std::string& s);
+std::string get_status_string(GuestStatus status);
+void clear_screen();
+void press_enter_to_continue();
+
+// --- Domain/Core Logic Functions ---
+Guest read_guest_from_console();
+Guest read_guest_from_file(std::ifstream& input_file);
+GuestArray load_guests();
+bool write_guest_to_file(std::ofstream& output_file, const Guest& guest_item);
+bool save_guests(const GuestArray& guests_to_save);
+bool collect_guests_from_user(GuestArray& guests_to_add_to);
+void display_guests(const GuestArray& guests_to_display);
+int find_guest_index_by_id(const GuestArray& guests, unsigned int id);
+int find_guest_index_by_ticket(const GuestArray& guests, short int ticket);
+void delete_guest_by_id(GuestArray& guests);
+void modify_guest_data(GuestArray& guests);
+void update_attendance_status(GuestArray& guests);
+void display_menu();
+bool handle_menu_choice(int choice, GuestArray& current_guest_list);
+void run_app();
+
+
+/**
+ * @brief Main function, entry point of the program.
+ * Calls the run_app function to start the guest management application.
+ * @return 0 on successful execution.
+ */
+int main()
+{
+    run_app();
+
+    return 0;
+}
+
+
+// --- Function Definitions ---
 
 /**
  * @brief Clears the input buffer.
- * Essential after reading numbers or single words with '>>' and before using 'getline',
- * to consume leftover newline characters.
+ * This is essential after reading numbers or single words with '>>' and before using 'getline',
+ * to consume leftover newline characters and prevent unintended skips in input.
  */
 void clear_input_buffer()
 {
@@ -76,71 +113,76 @@ std::string get_status_string(GuestStatus status) {
     }
 }
 
-// --- Domain/Core Logic Functions ---
+/**
+ * @brief Clears the console screen, compatible with multiple operating systems.
+ */
+void clear_screen() {
+#ifdef _WIN32
+    system("cls");
+#else
+    system("clear");
+#endif
+}
+
+/**
+ * @brief Pauses execution and waits for the user to press Enter.
+ */
+void press_enter_to_continue() {
+    std::cout << "\nPress Enter to continue...";
+    clear_input_buffer();
+}
 
 /**
  * @brief Reads a complete Guest from the console input.
- * Prompts the user for each field. Name is entered first and acts as the 'X' sentinel.
- * Automatically assigns an ID.
- *
- * @return A Guest struct populated with data. On termination ('X' for name) or failure,
+ * Prompts the user for each field except ticket, which is auto-generated.
+ * Automatically assigns an ID using the global next_guest_id.
+ * @return A Guest struct populated with data. On input failure,
  * returns a default-constructed Guest and sets std::cin.fail().
  */
 Guest read_guest_from_console()
 {
     Guest guest_item;
-    int status_choice; // Used for reading numeric choice for enum status
+    int status_choice;
 
-    // Name is entered first and acts as the 'X' sentinel
-    std::cout << "  Name (can include spaces, X to finish): ";
-    std::getline(std::cin, guest_item.name); // Read name first
+    std::cout << "\n  Full Name : ";
+    std::getline(std::cin, guest_item.name);
 
-    // Check for sentinel 'X' or general input failure
-    if (guest_item.name == "X") // User explicitly entered 'X'
+    if (std::cin.fail())
     {
-        std::cin.setstate(std::ios::failbit); // Set failbit to signal termination to caller
-        return Guest(); // Return a default-constructed Guest
-    }
-    else if (std::cin.fail()) // Other input stream error
-    {
-        // Do NOT clear cin's failbit here. Let the caller handle it.
-        return Guest(); // Return a default-constructed Guest to signal failure
-    }
-
-    // Assign auto-incrementing ID after a valid name is entered
-    guest_item.ID = next_guest_id++;
-
-    std::cout << "  Ticket Number: ";
-    std::cin >> guest_item.ticket;
-    if (std::cin.fail()) {
-        std::cerr << "[ERROR_READ_GUEST]: Failed to read ticket number from console for Name '" << guest_item.name << "'." << std::endl;
-        // Do NOT clear cin's failbit here. Let the caller handle it.
-        clear_input_buffer(); // Consume newline after ticket read by operator>>
+        std::cerr << "[ERROR_READ_GUEST]: Input stream error while reading name." << std::endl;
         return Guest();
     }
-    clear_input_buffer(); // Consume newline after ticket read by operator>>
 
-    std::cout << "  Phone (numeric): ";
+    guest_item.ID = next_guest_id++;
+    guest_item.ticket = next_ticket_number++; // Auto-assign ticket number
+
+    std::cout << "  Phone: ";
     std::cin >> guest_item.phone;
     if (std::cin.fail()) {
-        std::cerr << "[ERROR_READ_GUEST]: Failed to read phone from console for Name '" << guest_item.name << "'." << std::endl;
-        // Do NOT clear cin's failbit here. Let the caller handle it.
-        clear_input_buffer(); // Consume newline after phone read by operator>>
+        std::cerr << "[ERROR_READ_GUEST]: Failed to read phone for Name '" << guest_item.name << "'." << std::endl;
+        clear_input_buffer();
         return Guest();
     }
-    clear_input_buffer(); // Consume newline after phone read by operator>>
+    clear_input_buffer();
+
+    std::cout << "  Email: ";
+    std::cin >> guest_item.email;
+    if (std::cin.fail()) {
+        std::cerr << "[ERROR_READ_GUEST]: Failed to read email for Name '" << guest_item.name << "'." << std::endl;
+        clear_input_buffer();
+        return Guest();
+    }
+    clear_input_buffer();
 
     std::cout << "  Status (1: PENDING, 2: CONFIRMED, 3: WAITLISTED, 4: CANCELLED): ";
     std::cin >> status_choice;
     if (std::cin.fail()) {
-        std::cerr << "[ERROR_READ_GUEST]: Failed to read status choice from console for Name '" << guest_item.name << "'." << std::endl;
-        // Do NOT clear cin's failbit here. Let the caller handle it.
-        clear_input_buffer(); // Consume newline after status_choice read by operator>>
+        std::cerr << "[ERROR_READ_GUEST]: Failed to read status choice for Name '" << guest_item.name << "'." << std::endl;
+        clear_input_buffer();
         return Guest();
     }
-    clear_input_buffer(); // Consume newline after status_choice read by operator>>
+    clear_input_buffer();
 
-    // Assign status based on user's numeric choice
     switch (status_choice) {
         case 1: guest_item.status = PENDING_CONFIRMATION; break;
         case 2: guest_item.status = CONFIRMED;            break;
@@ -148,7 +190,7 @@ Guest read_guest_from_console()
         case 4: guest_item.status = CANCELLED;            break;
         default:
             std::cout << "  Invalid status choice. Setting to PENDING_CONFIRMATION." << std::endl;
-            guest_item.status = PENDING_CONFIRMATION; // Default for invalid input
+            guest_item.status = PENDING_CONFIRMATION;
             break;
     }
 
@@ -157,35 +199,30 @@ Guest read_guest_from_console()
 
 /**
  * @brief Reads a complete Guest from a file input stream.
- * Matches the file's storage format (ID TICKET PHONE STATUS_INT NAME - space-separated).
- * The name is read last using getline to handle spaces and acts as the 'X' sentinel.
- *
- * @param input_file The input file stream, passed by reference (modified).
- * @return A Guest struct populated with data. On termination ('X' for name) or failure,
+ * Matches the file's storage format: ID TICKET PHONE EMAIL STATUS_INT NAME (space-separated).
+ * The name is read last using getline to handle spaces.
+ * @param input_file The input file stream, passed by reference.
+ * @return A Guest struct populated with data. On encountering the 'X' sentinel or a read failure,
  * returns a default-constructed Guest and sets input_file.fail().
  */
 Guest read_guest_from_file(std::ifstream& input_file)
 {
     Guest guest_item;
-    int status_int; // To read status as an integer
+    int status_int;
 
-    // Attempt to read the ID first. If it fails, it might be the 'X' sentinel.
     input_file >> guest_item.ID;
 
-    if (input_file.fail()) // If reading ID failed (e.g., hit EOF, or 'X' was encountered)
+    if (input_file.fail())
     {
-        // Try to read the entire line as a string to check for the "X" sentinel
+        // If reading ID failed, check for 'X' sentinel or actual EOF.
         std::string line_content;
-        input_file.clear(); // Clear the fail bit to allow reading string
-        std::getline(input_file, line_content); // Read the rest of the current line (which might be "X")
-        trim_leading_whitespace(line_content);  // Remove any leading spaces
+        input_file.clear(); // Clear fail bit to allow reading string
+        std::getline(input_file, line_content);
+        trim_leading_whitespace(line_content);
 
-        // Set fail bit to signal termination by 'X'
-        if (line_content == "X") { input_file.setstate(std::ios::failbit); }
+        if (line_content == "X") { input_file.setstate(std::ios::failbit); } // Set fail bit to signal termination
 
-        // If it's not 'X' and input failed, it's a genuine read error or unexpected EOF
-        // The failbit is already set by the initial `input_file >> guest_item.ID;`
-        return Guest(); // Return default-constructed Guest
+        return Guest();
     }
 
     input_file >> guest_item.ticket;
@@ -194,39 +231,33 @@ Guest read_guest_from_file(std::ifstream& input_file)
     input_file >> guest_item.phone;
     if (input_file.fail()) { std::cerr << "[ERROR_READ_GUEST]: Failed to read phone from file for ID '" << guest_item.ID << "'." << std::endl; return Guest(); }
 
+    input_file >> guest_item.email;
+    if (input_file.fail()) { std::cerr << "[ERROR_READ_GUEST]: Failed to read email from file for ID '" << guest_item.ID << "'." << std::endl; return Guest(); }
+
     input_file >> status_int;
     if (input_file.fail()) { std::cerr << "[ERROR_READ_GUEST]: Failed to read status from file for ID '" << guest_item.ID << "'." << std::endl; return Guest(); }
     
-    // Convert integer back to enum, handle invalid values gracefully
     if (status_int >= PENDING_CONFIRMATION && status_int <= CANCELLED)
     {
         guest_item.status = static_cast<GuestStatus>(status_int);
     } 
     else 
     {
-        guest_item.status = PENDING_CONFIRMATION; // Default to pending if invalid status
+        guest_item.status = PENDING_CONFIRMATION;
     }
 
-    // After reading the last numeric field (status_int) with operator>>,
-    // the stream cursor is at the whitespace before the name.
-    // std::getline will read from here to the end of the line, including leading spaces.
-    // We then trim these leading spaces.
-    std::getline(input_file, guest_item.name); // Reads the name, which should be the rest of the line
+    // Read the rest of the line for the name.
+    std::getline(input_file, guest_item.name);
     
-    // Check for 'X' sentinel after reading the name
-    // This case should ideally be caught by the initial check for `X` as a standalone line.
-    // However, if the file has data like "1 2 3 4 X", this would still catch it.
     if (guest_item.name == "X") 
     {
-        input_file.setstate(std::ios::failbit); // Set fail bit to signal termination
-        return Guest(); // Return default-constructed Guest
+        input_file.setstate(std::ios::failbit);
+        return Guest();
     }
 
-    // Trim any leading whitespace that might have been picked up by getline
-    // if there was a space between status_int and name in the file.
-    trim_leading_whitespace(guest_item.name);
+    trim_leading_whitespace(guest_item.name); // Remove any leading whitespace
 
-    if (input_file.fail()) // Check if getline failed for other reasons (e.g., actual EOF instead of 'X')
+    if (input_file.fail())
     {
         std::cerr << "[ERROR_READ_GUEST]: Failed to read name from file for ID '" << guest_item.ID << "'." << std::endl;
         return Guest();
@@ -237,21 +268,20 @@ Guest read_guest_from_file(std::ifstream& input_file)
 
 /**
  * @brief Loads all guests from the guest data file into a GuestArray struct.
- * This function uses the `read_guest_from_file` helper function.
- * Initializes `next_guest_id` based on the highest ID found.
- *
+ * Initializes `next_guest_id` and `next_ticket_number` based on the highest values found in the file.
+ * If the file does not exist, it prints an informative message and returns an empty GuestArray.
  * @return A GuestArray containing all loaded guests. Returns an empty list on error or if file is empty.
  */
 GuestArray load_guests()
 {
     std::ifstream input_file(DB_CONNECTION);
     GuestArray guests_in_file;
-    unsigned int max_id_found = 0; // To track the highest ID for auto-increment
+    unsigned int max_id_found = 0;
+    short int max_ticket_found = FIRST_TICKET_NUMBER - 1;
 
     if (!input_file.is_open())
     {
-        std::cerr << "[ERROR_LOAD_GUESTS]: File not found or could not be opened: '" << DB_CONNECTION << "'." << std::endl;
-        // next_guest_id remains 1 if file not found
+        std::cout << "[INFO]: No existing guest data found. A new list will be started." << std::endl;
         return guests_in_file;
     }
 
@@ -261,16 +291,11 @@ GuestArray load_guests()
 
         if (input_file.fail())
         {
-            if (input_file.eof())
-            {
-                std::cout << "[INFO_LOAD_GUESTS]: Reached end of file." << std::endl;
-            }
-            else // Format error or 'X' sentinel encountered
+            if (!input_file.eof())
             {
                 std::cout << "[INFO_LOAD_GUESTS]: Guest list load terminated by sentinel 'X' or format error." << std::endl;
             }
-
-            break; // Exit loop on 'X' or any read error
+            break;
         }
 
         if (guests_in_file.length >= MAX_GUESTS)
@@ -282,35 +307,35 @@ GuestArray load_guests()
         guests_in_file.items[guests_in_file.length] = temp_guest;
         guests_in_file.length++;
 
-        // Update max_id_found
         if (temp_guest.ID > max_id_found) max_id_found = temp_guest.ID;
+        if (temp_guest.ticket > max_ticket_found) max_ticket_found = temp_guest.ticket;
     }
 
     input_file.close();
-    // Set next_guest_id for auto-increment
     next_guest_id = max_id_found + 1;
-    // Ensure ID starts at 1 if no guests were loaded or max_id_found was 0 initially.
-    if (next_guest_id == 0 || max_id_found == 0) next_guest_id = 1;
+    if (next_guest_id == 0) next_guest_id = 1;
+
+    next_ticket_number = max_ticket_found + 1;
+    if (next_ticket_number < FIRST_TICKET_NUMBER) next_ticket_number = FIRST_TICKET_NUMBER;
 
     return guests_in_file;
 }
 
 /**
  * @brief Writes details of a single guest to an output file stream.
- * All fields are written on a single line, separated by spaces. The name is last.
- *
- * @param output_file The output file stream, passed by reference (modified).
+ * All fields are written on a single line, separated by spaces, matching the defined file format.
+ * @param output_file The output file stream, passed by reference.
  * @param guest_item The Guest struct to write, passed by constant reference.
  * @return true if the guest details were written successfully, false otherwise.
  */
 bool write_guest_to_file(std::ofstream& output_file, const Guest& guest_item)
 {
-    // Format: ID TICKET PHONE STATUS_INT NAME_WITH_SPACES
     output_file << guest_item.ID << " "
                 << guest_item.ticket << " "
                 << guest_item.phone << " "
+                << guest_item.email << " "
                 << static_cast<int>(guest_item.status) << " "
-                << guest_item.name << std::endl; // Name is last, gets the rest of the line
+                << guest_item.name << std::endl;
 
     if (output_file.fail())
     {
@@ -323,8 +348,7 @@ bool write_guest_to_file(std::ofstream& output_file, const Guest& guest_item)
 
 /**
  * @brief Saves all guests from the GuestArray to the guest data file.
- * Writes a special sentinel record ('X' in name) at the end.
- *
+ * This function overwrites the existing file and automatically writes an 'X' sentinel at the end.
  * @param guests_to_save The GuestArray to save, passed by constant reference.
  * @return true if saving was successful, false otherwise.
  */
@@ -348,8 +372,7 @@ bool save_guests(const GuestArray& guests_to_save)
         }
     }
 
-    // Write the 'X' sentinel record (single 'X' on a new line)
-    output_file << "X" << std::endl;
+    output_file << "X" << std::endl; // Automatically write the 'X' sentinel
 
     output_file.close();
 
@@ -364,53 +387,50 @@ bool save_guests(const GuestArray& guests_to_save)
 
 /**
  * @brief Collects new guest data from user input (console) and adds it to an existing GuestArray.
- * This function uses the `read_guest_from_console` helper function.
- *
+ * Allows continuous input until the user chooses to stop or MAX_GUESTS is reached.
  * @param guests_to_add_to A reference to the GuestArray to which new guests will be added (modified).
- * @return true if the collection process completed successfully (or user terminated), false if an error occurred during input.
+ * @return true if the collection process completed successfully, false if a critical error occurred during input.
  */
 bool collect_guests_from_user(GuestArray& guests_to_add_to)
 {
-    std::cout << "\n--- Enter New Guests (Type 'X' for Name to finish) ---" << std::endl;
+    std::cout << "\n--- Enter New Guests ---\n" << std::endl;
+    char continue_adding_choice = 'y';
 
-    // Loop continues until 'X' is entered for name or MAX_GUESTS is reached
-    while (guests_to_add_to.length < MAX_GUESTS)
+    while (guests_to_add_to.length < MAX_GUESTS && (continue_adding_choice == 'y' || continue_adding_choice == 'Y'))
     {
+        std::cout << "\n--- Adding Guest " << (guests_to_add_to.length + 1) << " (Auto-assigned Ticket: " << next_ticket_number << ") ---\n" << std::endl;
         Guest new_guest = read_guest_from_console();
 
-        // Check if read_guest_from_console set failbit (due to 'X' for name or format error)
         if (std::cin.fail())
         {
-            std::cin.clear(); // Clear cin error state (essential after failbit for continued operation)
-            std::cout << "--- Guest entry complete. ---" << std::endl;
-            break; // Exit the loop
+            std::cin.clear();
+            std::cout << "Invalid input detected for guest. Please try again or choose to stop." << std::endl;
+        } else {
+            guests_to_add_to.items[guests_to_add_to.length] = new_guest;
+            guests_to_add_to.length++;
         }
         
-        // This check is redundant because the loop condition already covers MAX_GUESTS.
-        // It's left for clarity if guests_to_add_to.length might increase unexpectedly within the loop.
-        if (guests_to_add_to.length >= MAX_GUESTS)
+        if (guests_to_add_to.length < MAX_GUESTS)
         {
-                std::cout << "[WARNING_INPUT]: Guest list full, cannot add more guests from user input." << std::endl;
-                break;
+            std::cout << "\nWould you like to continue adding guests? (y/N): ";
+            std::cin >> continue_adding_choice;
+            clear_input_buffer();
+        } else {
+            std::cout << "\n[WARNING]: Maximum guest limit reached (" << MAX_GUESTS << "). Cannot add more guests." << std::endl;
+            continue_adding_choice = 'n';
         }
-
-        guests_to_add_to.items[guests_to_add_to.length] = new_guest;
-        guests_to_add_to.length++;
     }
-    
+    std::cout << "\n--- Guest entry complete. ---" << std::endl;
     return true;
 }
 
 /**
- * @brief Displays the guests contained in a GuestArray to the console.
- *
+ * @brief Displays the guests contained in a GuestArray to the console in a formatted table.
  * @param guests_to_display The GuestArray to display, passed by constant reference.
- *
- * @return void
  */
 void display_guests(const GuestArray& guests_to_display)
 {
-    std::cout << "\n--- Current Guest List ---" << std::endl;
+    std::cout << "\n--- Current Guest List ---\n" << std::endl;
 
     if (guests_to_display.length == 0)
     {
@@ -418,21 +438,20 @@ void display_guests(const GuestArray& guests_to_display)
         return;
     }
 
-    // Set up formatting for table-like output
     std::cout << std::left << std::setw(6) << "ID"
-              << std::left << std::setw(25) << "Name" // Name moved to second column
+              << std::left << std::setw(30) << "Name"
               << std::left << std::setw(8) << "Ticket"
-              << std::left << std::setw(10) << "Phone" // Width adjusted for short int
+              << std::left << std::setw(15) << "Phone"
               << std::left << std::setw(10) << "Status"
               << std::endl;
-    std::cout << std::string(79, '-') << std::endl; // Separator line
+    std::cout << std::string(79, '-') << std::endl;
 
     for (int i = 0; i < guests_to_display.length; ++i)
     {
         std::cout << std::left << std::setw(6) << guests_to_display.items[i].ID
-                  << std::left << std::setw(25) << guests_to_display.items[i].name // Display Name here
+                  << std::left << std::setw(30) << guests_to_display.items[i].name
                   << std::left << std::setw(8) << guests_to_display.items[i].ticket
-                  << std::left << std::setw(10) << guests_to_display.items[i].phone
+                  << std::left << std::setw(15) << guests_to_display.items[i].phone
                   << std::left << std::setw(10) << get_status_string(guests_to_display.items[i].status)
                   << std::endl;
     }
@@ -441,26 +460,328 @@ void display_guests(const GuestArray& guests_to_display)
     std::cout << "Total guests: " << guests_to_display.length << std::endl;
 }
 
-// --- Main Function ---
-int main()
-{
-    // 1. Load existing guests from the file into memory.
-    // This also initializes 'next_guest_id' based on the highest ID found in the file.
-    GuestArray current_guest_list = load_guests();
-    std::cout << "\n--- Initial Guest List Loaded ---" << std::endl;
-    display_guests(current_guest_list); // Show what was loaded initially
+/**
+ * @brief Finds a guest in the GuestArray by their ID and returns its index.
+ * @param guests The GuestArray to search, passed by constant reference.
+ * @param id The ID to search for.
+ * @return The index of the Guest if found, otherwise -1.
+ */
+int find_guest_index_by_id(const GuestArray& guests, unsigned int id) {
+    for (int i = 0; i < guests.length; ++i) {
+        if (guests.items[i].ID == id) {
+            return i;
+        }
+    }
+    return -1;
+}
 
-    // 2. Ask for more guests from user input and add them to the current array in memory.
-    // 'next_guest_id' will be used to assign IDs to these new guests.
-    if (!collect_guests_from_user(current_guest_list))
+/**
+ * @brief Finds a guest in the GuestArray by their ticket number and returns its index.
+ * @param guests The GuestArray to search, passed by constant reference.
+ * @param ticket The ticket number to search for.
+ * @return The index of the Guest if found, otherwise -1.
+ */
+int find_guest_index_by_ticket(const GuestArray& guests, short int ticket) {
+    for (int i = 0; i < guests.length; ++i) {
+        if (guests.items[i].ticket == ticket) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+/**
+ * @brief Handles the process of deleting a guest by their ID.
+ * Displays the current guest list, prompts for an ID, asks for confirmation,
+ * then removes the guest and saves the updated list.
+ * @param guests A reference to the GuestArray to modify.
+ */
+void delete_guest_by_id(GuestArray& guests) {
+    std::cout << "\n--- Delete Guest ---\n" << std::endl;
+    display_guests(guests);
+
+    unsigned int id_to_delete;
+    std::cout << "\nEnter the ID of the guest to delete: ";
+    std::cin >> id_to_delete;
+    if (std::cin.fail()) {
+        std::cerr << "Invalid input. Please enter a valid ID." << std::endl;
+        std::cin.clear();
+        clear_input_buffer();
+        return;
+    }
+    clear_input_buffer();
+
+    int found_index = find_guest_index_by_id(guests, id_to_delete);
+
+    if (found_index != -1) {
+        std::cout << "\nAre you sure you want to delete guest: " 
+                  << guests.items[found_index].name << " (ID: " 
+                  << guests.items[found_index].ID << ")? (y/N): ";
+        char confirm_choice;
+        std::cin >> confirm_choice;
+        clear_input_buffer();
+
+        if (confirm_choice == 'y' || confirm_choice == 'Y') {
+            // Algorithm to remove an element from a fixed-size array by shifting subsequent elements
+            for (int i = found_index; i < guests.length - 1; ++i) {
+                guests.items[i] = guests.items[i + 1];
+            }
+            guests.length--; // Reduce the effective length of the array
+            std::cout << "\nGuest with ID " << id_to_delete << " deleted successfully." << std::endl;
+            if (save_guests(guests)) {
+                std::cout << "Guest list saved." << std::endl;
+            } else {
+                std::cerr << "Failed to save updated guest list." << std::endl;
+            }
+        } else {
+            std::cout << "\nDeletion cancelled." << std::endl;
+        }
+    } else {
+        std::cout << "\nGuest with ID " << id_to_delete << " not found." << std::endl;
+    }
+}
+
+/**
+ * @brief Handles the process of modifying data for an existing guest by their ID.
+ * Displays the current guest list, prompts for an ID, shows current data,
+ * then allows modification of selected fields and saves the updated list.
+ * @param guests A reference to the GuestArray to modify.
+ */
+void modify_guest_data(GuestArray& guests) {
+    std::cout << "\n--- Modify Guest Data ---\n" << std::endl;
+    display_guests(guests);
+
+    unsigned int id_to_modify;
+    std::cout << "\nEnter the ID of the guest to modify: ";
+    std::cin >> id_to_modify;
+    if (std::cin.fail()) {
+        std::cerr << "Invalid input. Please enter a valid ID." << std::endl;
+        std::cin.clear();
+        clear_input_buffer();
+        return;
+    }
+    clear_input_buffer();
+
+    int found_index = find_guest_index_by_id(guests, id_to_modify);
+
+    if (found_index != -1) {
+        Guest& guest_ref = guests.items[found_index];
+        
+        clear_screen();
+        std::cout << "\n--- Modifying Guest: " << guest_ref.name << " (ID: " << guest_ref.ID << ") ---\n" << std::endl;
+        std::cout << "  Current Data:" << std::endl;
+        std::cout << "    Name:   " << guest_ref.name << std::endl;
+        std::cout << "    Ticket: " << guest_ref.ticket << std::endl;
+        std::cout << "    Phone:  " << guest_ref.phone << std::endl;
+        std::cout << "    Email:  " << guest_ref.email << std::endl;
+        std::cout << "    Status: " << get_status_string(guest_ref.status) << std::endl;
+
+        int choice;
+        std::cout << "\nWhat do you want to modify?" << std::endl;
+        std::cout << "1. Name" << std::endl;
+        std::cout << "2. Phone Number" << std::endl;
+        std::cout << "3. Email" << std::endl;
+        std::cout << "4. Status" << std::endl;
+        std::cout << "\nEnter your choice: ";
+        std::cin >> choice;
+        if (std::cin.fail()) {
+            std::cerr << "Invalid input. Please enter a number." << std::endl;
+            std::cin.clear();
+            clear_input_buffer();
+            return;
+        }
+        clear_input_buffer();
+
+        switch (choice) {
+            case 1:
+                std::cout << "  Current Name: " << guest_ref.name << std::endl;
+                std::cout << "  Enter new name: ";
+                std::getline(std::cin, guest_ref.name);
+                break;
+            case 2:
+                std::cout << "  Current Phone Number: " << guest_ref.phone << std::endl;
+                std::cout << "  Enter new phone number: ";
+                std::cin >> guest_ref.phone;
+                if (std::cin.fail()) { std::cerr << "Invalid phone number." << std::endl; }
+                clear_input_buffer();
+                break;
+            case 3:
+                std::cout << "  Current Email: " << guest_ref.email << std::endl;
+                std::cout << "  Enter new email: ";
+                std::cin >> guest_ref.email;
+                if (std::cin.fail()) { std::cerr << "Invalid email." << std::endl; }
+                clear_input_buffer();
+                break;
+            case 4:
+                int status_choice;
+                std::cout << "  Current Status: " << get_status_string(guest_ref.status) << std::endl;
+                std::cout << "  Enter new status (1: PENDING, 2: CONFIRMED, 3: WAITLISTED, 4: CANCELLED): ";
+                std::cin >> status_choice;
+                if (std::cin.fail() || status_choice < 1 || status_choice > 4) {
+                    std::cerr << "Invalid status choice. Status not changed." << std::endl;
+                } else {
+                    guest_ref.status = static_cast<GuestStatus>(status_choice);
+                }
+                clear_input_buffer();
+                break;
+            default:
+                std::cout << "Invalid modification choice." << std::endl;
+                break;
+        }
+
+        std::cout << "\nGuest data modified successfully." << std::endl;
+        if (save_guests(guests)) {
+            std::cout << "Guest list saved." << std::endl;
+        } else {
+            std::cerr << "Failed to save updated guest list." << std::endl;
+        }
+    } else {
+        std::cout << "\nGuest with ID " << id_to_modify << " not found." << std::endl;
+    }
+}
+
+/**
+ * @brief Confirms or cancels attendance for a guest by their ticket number.
+ * Displays the current guest list, prompts for a ticket number, shows current status,
+ * then allows updating the status to CONFIRMED or CANCELLED and saves the list.
+ * @param guests A reference to the GuestArray to modify.
+ */
+void update_attendance_status(GuestArray& guests) {
+    std::cout << "\n--- Confirm/Cancel Attendance ---\n" << std::endl;
+    display_guests(guests);
+
+    short int ticket_number;
+    std::cout << "\nEnter the ticket number of the guest: ";
+    std::cin >> ticket_number;
+    if (std::cin.fail()) {
+        std::cerr << "Invalid input. Please enter a valid ticket number." << std::endl;
+        std::cin.clear();
+        clear_input_buffer();
+        return;
+    }
+    clear_input_buffer();
+
+    int found_index = find_guest_index_by_ticket(guests, ticket_number);
+
+    if (found_index != -1) {
+        Guest& guest_ref = guests.items[found_index];
+
+        std::cout << "\nGuest found: ID " << guest_ref.ID << ", Name: " << guest_ref.name
+                  << ", Current Status: " << get_status_string(guest_ref.status) << std::endl;
+
+        int status_choice;
+        std::cout << "  Set new status (2: CONFIRMED, 4: CANCELLED): ";
+        std::cin >> status_choice;
+        if (std::cin.fail() || (status_choice != CONFIRMED && status_choice != CANCELLED)) {
+            std::cerr << "Invalid status choice. Status not changed." << std::endl;
+        } else {
+            guest_ref.status = static_cast<GuestStatus>(status_choice);
+            std::cout << "Attendance status updated to " << get_status_string(guest_ref.status) << "." << std::endl;
+            if (save_guests(guests)) {
+                std::cout << "Guest list saved." << std::endl;
+            } else {
+                std::cerr << "Failed to save updated guest list." << std::endl;
+            }
+        }
+        clear_input_buffer();
+    } else {
+        std::cout << "\nGuest with ticket number " << ticket_number << " not found." << std::endl;
+    }
+}
+
+/**
+ * @brief Displays the main menu options to the console.
+ */
+void display_menu() {
+    std::cout << "\n--- Studio 54 Guest Management System ---\n" << std::endl;
+    std::cout << "1. Display All Guests" << std::endl;
+    std::cout << "2. Add New Guests" << std::endl;
+    std::cout << "3. Delete a Guest (by ID)" << std::endl;
+    std::cout << "4. Modify Guest Data (by ID)" << std::endl;
+    std::cout << "5. Confirm/Cancel Attendance (by Ticket Number)" << std::endl;
+    std::cout << "0. Exit Application" << std::endl;
+    std::cout << "\nEnter your choice: ";
+}
+
+/**
+ * @brief Handles the execution of a selected menu option.
+ * This function encapsulates the logic for each menu choice,
+ * including calls to specific functionality and handling screen clears and pauses.
+ * @param choice The integer representing the user's menu choice.
+ * @param current_guest_list A reference to the GuestArray being managed.
+ * @return true if the application should continue running, false if the user chose to exit.
+ */
+bool handle_menu_choice(int choice, GuestArray& current_guest_list) {
+    switch (choice)
     {
-        std::cerr << "Application terminated due to error during guest input." << std::endl;
-        return 1;
+        case 1:
+            display_guests(current_guest_list);
+            press_enter_to_continue();
+            return true;
+        case 2:
+            collect_guests_from_user(current_guest_list);
+            clear_screen();
+            display_guests(current_guest_list);
+            press_enter_to_continue();
+            return true;
+        case 3:
+            delete_guest_by_id(current_guest_list);
+            press_enter_to_continue();
+            return true;
+        case 4:
+            modify_guest_data(current_guest_list);
+            press_enter_to_continue();
+            return true;
+        case 5:
+            update_attendance_status(current_guest_list);
+            press_enter_to_continue();
+            return true;
+        case 0:
+            std::cout << "\nExiting application. Saving current guest list..." << std::endl;
+            return false;
+        default:
+            std::cout << "\nInvalid choice. Please try again." << std::endl;
+            press_enter_to_continue();
+            return true;
+    }
+}
+
+
+/**
+ * @brief The main entry point for the Studio 54 Guest Management Application.
+ * Handles loading/saving guests and presenting the main menu.
+ * Manages screen clearing and pausing for user interaction.
+ */
+void run_app()
+{
+    clear_screen();
+    GuestArray current_guest_list = load_guests();
+    
+    display_guests(current_guest_list); 
+    press_enter_to_continue(); 
+
+    int choice;
+    bool running = true;
+
+    while (running)
+    {
+        clear_screen();
+        display_menu();
+        std::cin >> choice;
+
+        if (std::cin.fail()) {
+            std::cerr << "Invalid input. Please enter a number." << std::endl;
+            std::cin.clear();
+            clear_input_buffer();
+            press_enter_to_continue();
+            continue;
+        }
+        clear_input_buffer();
+
+        clear_screen();
+        running = handle_menu_choice(choice, current_guest_list);
     }
 
-    // 3. After finishing guest entry, save the updated guest list from memory back to the file.
-    // This overwrites the old file with the combined list (initial + new).
-    std::cout << "\n--- Saving Updated Guest List ---" << std::endl;
     if (save_guests(current_guest_list))
     {
         std::cout << "Guest list successfully updated and saved to file." << std::endl;
@@ -468,14 +789,7 @@ int main()
     else
     {
         std::cerr << "Failed to save updated guest list to file. Data might be lost." << std::endl;
-        return 1;
     }
-
-    // 4. Load the final guest list from the file one last time and display it,
-    // to confirm that saving and loading are working as expected.
-    std::cout << "\n--- Final Guest List from File ---" << std::endl;
-    GuestArray final_guest_list_from_file = load_guests();
-    display_guests(final_guest_list_from_file);
-
-    return 0;
+    
+    press_enter_to_continue();
 }
