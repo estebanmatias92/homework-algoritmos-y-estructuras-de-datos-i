@@ -1,4 +1,4 @@
-# Algoritmos y Estructuras de Datos I - Actividad 10 - Laboratorio - Studio 54
+# Algoritmos y Estructuras de Datos I - Unidad Cuatrimestre - Actividad Integrador - Studio 54
 
 ## Descripción
 
