@@ -1,0 +1,10 @@
+services:
+  # Optional: Service for the production build, ready for deployment
+   # Optional: Production build service (not part of your specific request, but good to keep)
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    restart: on-failure
+    profiles: ["production"] # Assigns this service to the 'production' profile

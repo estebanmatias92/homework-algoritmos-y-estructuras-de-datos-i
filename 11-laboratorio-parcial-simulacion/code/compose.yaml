@@ -1,0 +1,6 @@
+services:
+  app:
+    build:
+      context: ./core-service
+      target: builder  # Uses the builder stage
+    command: ./build/main  # Runs the compiled binary

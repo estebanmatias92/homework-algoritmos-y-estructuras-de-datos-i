@@ -1,0 +1,10 @@
+services:
+  dev:
+    build:
+      context: .
+      target: development # Use the dev stage
+    stdin_open: true # Enable interactive
+    tty: true # Enable terminal
+    volumes: # It needs access to the service root dir
+      - .:/app
+    command: ./build/main

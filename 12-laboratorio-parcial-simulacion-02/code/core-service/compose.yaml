@@ -1,0 +1,47 @@
+services:
+  # This service is for interactive development.
+  # It will ONLY start if the 'development' profile is activated.
+  dev_interactive: # Renamed for clarity on its purpose
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    stdin_open: true
+    tty: true
+    volumes:
+      # Mount only the source directory for live development/recompilation
+      # This ensures any changes you make on your host are reflected,
+      # and the pre-built binary from the image (in /app/build) is also available.
+      - ./src:/app/src
+    command: bash # Start bash for interactive development
+    profiles: ["interactive"] # Assigns this service to the 'interactive' profile
+
+  # This is your main "dev stack" application runner.
+  # It will be triggered by default with 'docker compose up'.
+  run_dev_app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    command: /app/build/main # Runs the compiled binary directly
+    # This service has no 'profiles' key, so it's part of the default set
+    # that starts with 'docker compose up' without any profile specified.
+
+
+  # Example of a *separate* service for isolated, ad-hoc tasks.
+  # This service might have different dependencies or volume mounts
+  # and is meant to be run with 'docker compose run'.
+  # It is NOT intended to be part of the default 'up' stack.
+  isolated_tool:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development # Or a custom target if it needs specific tools
+    volumes:
+      # Mount the current directory or a specific path on your host
+      # for the isolated task. This allows it to work on host files.
+      - .:/host_project # Mounts your project root to /host_project inside the container
+    command: bash # Or a specific script/tool to run (e.g., "python /host_project/scripts/my_script.py")
+    profiles: ["tools"] # Assign this to a profile to ensure it's never part of default 'up'
+    stdin_open: true
+    tty: true
